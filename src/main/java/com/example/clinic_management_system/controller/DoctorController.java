@@ -1,41 +1,49 @@
-package com.example.clinic_management_system.controller;
-
-import com.example.clinicmanagement.service.DoctorService;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/api/doctors")
+@RequestMapping("/api")
 public class DoctorController {
 
     @Autowired
     private DoctorService doctorService;
 
-    @GetMapping("/availability")
-    public ResponseEntity<?> getDoctorAvailability(
-            @RequestParam Long doctorId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            HttpServletRequest request) {
+    @Autowired
+    private TokenService tokenService;
 
-        // Token validation logic (could be in filter/security context too)
-        String token = request.getHeader("Authorization");
-        if (token == null || !token.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body("Invalid token");
+    @GetMapping("/users/{userId}/doctors/{doctorId}/availability/{date}")
+    public ResponseEntity<Map<String, Object>> checkDoctorAvailability(
+            @PathVariable Long userId,
+            @PathVariable Long doctorId,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam("token") String token) {
+
+        // Step 1: Validate the token (stubbed logic; customize with your tokenService)
+        if (!tokenService.isValid(token, userId)) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Unauthorized: Invalid token");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
         }
 
-        try {
-            List<String> availableTimes = doctorService.getAvailableTimeSlots(doctorId, date);
-            return ResponseEntity.ok().body(availableTimes);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("Internal Server Error");
-        }
+        // Step 2: Check availability using service
+        boolean isAvailable = doctorService.isDoctorAvailableOnDate(doctorId, date);
+
+        // Step 3: Build structured response
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("available", isAvailable);
+        response.put("message", isAvailable
+                ? "Doctor is available on " + date
+                : "Doctor is not available on " + date);
+
+        return ResponseEntity.ok(response);
     }
-
-    // Other endpoints (add doctor, list, etc.)
 }
